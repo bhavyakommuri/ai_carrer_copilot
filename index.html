@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Career Copilot</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6fb;
+      color: #20243a;
+    }
+    header {
+      background: #202b55;
+      color: white;
+      padding: 25px 8%;
+    }
+    header h1 { margin: 0 0 8px; }
+    header p { margin: 0; color: #dce3ff; }
+    main {
+      max-width: 950px;
+      margin: 30px auto;
+      padding: 0 18px;
+    }
+    .panel {
+      background: white;
+      padding: 24px;
+      margin-bottom: 20px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px #18234a12;
+    }
+    label {
+      display: block;
+      font-weight: bold;
+      margin: 18px 0 8px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 170px;
+      padding: 13px;
+      border: 1px solid #ccd2e0;
+      border-radius: 9px;
+      font: inherit;
+      resize: vertical;
+    }
+    button {
+      background: #4357d5;
+      color: white;
+      border: 0;
+      border-radius: 8px;
+      padding: 13px 20px;
+      margin: 14px 8px 0 0;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover { background: #3044bd; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .secondary { background: #e9edff; color: #293b9b; }
+    .status { margin-top: 15px; font-weight: bold; }
+    .result { line-height: 1.6; }
+    .score {
+      font-size: 38px;
+      font-weight: bold;
+      color: #4357d5;
+    }
+    .result h3 { color: #293b9b; margin-bottom: 5px; }
+    .result ul { padding-left: 22px; }
+    .hidden { display: none; }
+    footer { text-align: center; padding: 25px; color: #68708a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Career Copilot</h1>
+    <p>Your AI-powered resume analyzer and career assistant</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Analyze Your Resume</h2>
+      <p>Paste your resume and the job description to receive an AI-powered analysis.</p>
+
+      <label for="resume">Your Resume</label>
+      <textarea id="resume" placeholder="Paste your resume text here..."></textarea>
+
+      <label for="job">Job Description</label>
+      <textarea id="job" placeholder="Paste the job description here..."></textarea>
+
+      <button id="analyzeBtn" onclick="analyzeResume()">Analyze Resume</button>
+      <button class="secondary" onclick="loadSample()">Load Sample</button>
+      <button class="secondary" onclick="clearForm()">Clear</button>
+
+      <p id="status" class="status"></p>
+    </section>
+
+    <section id="resultPanel" class="panel hidden">
+      <h2>Resume Analysis Report</h2>
+      <div id="result" class="result"></div>
+      <button onclick="downloadReport()">Download Report</button>
+      <button class="secondary" onclick="copyReport()">Copy Report</button>
+    </section>
+  </main>
+
+  <footer>AI Career Copilot | Built with Google Gemini</footer>
+
+  <script>
+    let latestReport = null;
+
+    function loadSample() {
+      document.getElementById("resume").value =
+        "Name: Alex Kumar\nEducation: B.Tech Computer Science\nSkills: Python, Java, HTML, CSS, SQL, Machine Learning\nProjects: Student Performance Prediction using Python and Machine Learning. Developed a web application using HTML and CSS.\nExperience: Fresher\nCertifications: Python Programming";
+
+      document.getElementById("job").value =
+        "We are looking for a Junior AI/ML Engineer. Required skills: Python, Machine Learning, SQL, Data Analysis, communication skills and problem solving. Fresh graduates can apply.";
+    }
+
+    function clearForm() {
+      document.getElementById("resume").value = "";
+      document.getElementById("job").value = "";
+      document.getElementById("status").textContent = "";
+      document.getElementById("resultPanel").classList.add("hidden");
+      latestReport = null;
+    }
+
+    function safeText(value) {
+      return String(value ?? "");
+    }
+
+    function makeList(items) {
+      if (!Array.isArray(items) || items.length === 0) {
+        return "<li>Not available</li>";
+      }
+      return items.map(item => `<li>${escapeHTML(safeText(item))}</li>`).join("");
+    }
+
+    function escapeHTML(value) {
+      return value.replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      })[char]);
+    }
+
+    async function analyzeResume() {
+      const resume = document.getElementById("resume").value.trim();
+      const job = document.getElementById("job").value.trim();
+      const status = document.getElementById("status");
+      const button = document.getElementById("analyzeBtn");
+
+      if (!resume || !job) {
+        status.textContent = "Please enter both your resume and job description.";
+        return;
+      }
+
+      button.disabled = true;
+      status.textContent = "Analyzing your resume. Please wait...";
+      document.getElementById("resultPanel").classList.add("hidden");
+
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resume, jobDescription: job })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Analysis failed.");
+        }
+
+        latestReport = data;
+        displayReport(data);
+        status.textContent = "Analysis completed successfully!";
+        document.getElementById("resultPanel").classList.remove("hidden");
+      } catch (error) {
+        status.textContent = "Error: " + error.message +
+          " Make sure the project is running through Vercel.";
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function displayReport(data) {
+      const score = Number(data.atsScore);
+      document.getElementById("result").innerHTML = `
+        <h3>ATS Match Score</h3>
+        <div class="score">${Number.isFinite(score) ? score : 0}%</div>
+
+        <h3>Summary</h3>
+        <p>${escapeHTML(safeText(data.summary))}</p>
+
+        <h3>Matching Keywords</h3>
+        <ul>${makeList(data.matchingKeywords)}</ul>
+
+        <h3>Missing Keywords</h3>
+        <ul>${makeList(data.missingKeywords)}</ul>
+
+        <h3>Strengths</h3>
+        <ul>${makeList(data.strengths)}</ul>
+
+        <h3>Improvement Suggestions</h3>
+        <ul>${makeList(data.improvementSuggestions)}</ul>
+
+        <h3>Skill Gap Learning Plan</h3>
+        <ul>${makeList(data.skillGapPlan)}</ul>
+
+        <h3>Interview Questions</h3>
+        <ul>${makeList(data.interviewQuestions)}</ul>
+
+        <h3>Suggested Roles</h3>
+        <ul>${makeList(data.suggestedRoles)}</ul>
+      `;
+    }
+
+    function downloadReport() {
+      if (!latestReport) return;
+      const blob = new Blob(
+        [JSON.stringify(latestReport, null, 2)],
+        { type: "application/json" }
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "career-copilot-report.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function copyReport() {
+      if (!latestReport) return;
+      await navigator.clipboard.writeText(
+        JSON.stringify(latestReport, null, 2)
+      );
+      document.getElementById("status").textContent = "Report copied!";
+    }
+  </script>
+</body>
+</html>
